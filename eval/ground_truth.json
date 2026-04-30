@@ -1,0 +1,282 @@
+[
+  {
+    "id": "q001",
+    "question": "What year did Albert Einstein receive the Nobel Prize in Physics?",
+    "expected_answer": "1921",
+    "expected_sources": ["person_albert_einstein.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q002",
+    "question": "Who designed the Statue of Liberty?",
+    "expected_answer": "Frédéric Auguste Bartholdi",
+    "expected_sources": ["place_statue_of_liberty.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q003",
+    "question": "What was Marie Curie's maiden name?",
+    "expected_answer": "Maria Sklodowska",
+    "expected_sources": ["person_marie_curie.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q004",
+    "question": "When was the Eiffel Tower completed?",
+    "expected_answer": "1889",
+    "expected_sources": ["place_eiffel_tower.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q005",
+    "question": "What is the height of Mount Everest?",
+    "expected_answer": "8,849 metres",
+    "expected_sources": ["place_mount_everest.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q006",
+    "question": "What is the Colosseum also known as?",
+    "expected_answer": "Flavian Amphitheatre",
+    "expected_sources": ["place_colosseum.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q007",
+    "question": "What nationality was Nikola Tesla?",
+    "expected_answer": "Serbian-American",
+    "expected_sources": ["person_nikola_tesla.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q008",
+    "question": "Where is the Taj Mahal located?",
+    "expected_answer": "Agra, India",
+    "expected_sources": ["place_taj_mahal.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q009",
+    "question": "How many goals has Lionel Messi scored for Barcelona?",
+    "expected_answer": "672",
+    "expected_sources": ["person_lionel_messi.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q010",
+    "question": "What was Leonardo da Vinci's most famous painting?",
+    "expected_answer": "Mona Lisa",
+    "expected_sources": ["person_leonardo_da_vinci.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q011",
+    "question": "When did Mustafa Kemal Atatürk establish the Republic of Turkey?",
+    "expected_answer": "1923",
+    "expected_sources": ["person_mustafa_kemal_atatürk.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q012",
+    "question": "What was the original function of Hagia Sophia?",
+    "expected_answer": "Christian cathedral",
+    "expected_sources": ["place_hagia_sophia.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q013",
+    "question": "Who built the Taj Mahal and why?",
+    "expected_answer": "Shah Jahan, in memory of his wife Mumtaz Mahal",
+    "expected_sources": ["place_taj_mahal.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q014",
+    "question": "What did Ada Lovelace contribute to computing?",
+    "expected_answer": "She wrote the first computer program/algorithm for the Analytical Engine",
+    "expected_sources": ["person_ada_lovelace.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q015",
+    "question": "How long is the Great Wall of China?",
+    "expected_answer": "Over 21,000 kilometres",
+    "expected_sources": ["place_great_wall_of_china.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q016",
+    "question": "What plays did William Shakespeare write?",
+    "expected_answer": "Hamlet, Romeo and Juliet, Macbeth, Othello, King Lear, etc.",
+    "expected_sources": ["person_william_shakespeare.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q017",
+    "question": "When was Anıtkabir completed and where is it?",
+    "expected_answer": "1953, Ankara",
+    "expected_sources": ["place_anıtkabir.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q018",
+    "question": "What was Cristiano Ronaldo's first professional club?",
+    "expected_answer": "Sporting CP",
+    "expected_sources": ["person_cristiano_ronaldo.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q019",
+    "question": "What is Machu Picchu and where is it located?",
+    "expected_answer": "An Inca citadel in the Andes Mountains of Peru",
+    "expected_sources": ["place_machu_picchu.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q020",
+    "question": "What was Frida Kahlo known for in her art?",
+    "expected_answer": "Self-portraits inspired by nature and Mexican folk art",
+    "expected_sources": ["person_frida_kahlo.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q021",
+    "question": "What role did İsmet İnönü play after Atatürk?",
+    "expected_answer": "He became the second President of Turkey",
+    "expected_sources": ["person_i̇smet_i̇nönü.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q022",
+    "question": "What is the Grand Canyon's depth?",
+    "expected_answer": "Over a mile (1,800 metres / 6,000 feet)",
+    "expected_sources": ["place_grand_canyon.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q023",
+    "question": "Who was the first female combat pilot in Turkey?",
+    "expected_answer": "Sabiha Gökçen",
+    "expected_sources": ["person_sabiha_gökçen.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q024",
+    "question": "What is the significance of the Battle of Dumlupınar?",
+    "expected_answer": "It was the final decisive battle of the Turkish War of Independence",
+    "expected_sources": ["place_dumlupınar.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q025",
+    "question": "What albums has Taylor Swift released?",
+    "expected_answer": "Fearless, Red, 1989, Reputation, Lover, folklore, evermore, Midnights, etc.",
+    "expected_sources": ["person_taylor_swift.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q026",
+    "question": "What pyramids are at the Giza Necropolis?",
+    "expected_answer": "The Great Pyramid of Khufu, the Pyramid of Khafre, and the Pyramid of Menkaure",
+    "expected_sources": ["place_giza_necropolis.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q027",
+    "question": "What was Enver Pasha's role in the Ottoman Empire?",
+    "expected_answer": "He was one of the leaders of the Young Turk Revolution and served as Minister of War",
+    "expected_sources": ["person_enver_paşa.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q028",
+    "question": "When was the Topkapi Palace built?",
+    "expected_answer": "Construction began in 1459",
+    "expected_sources": ["place_topkapı_sarayı.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q029",
+    "question": "What was Halide Edip Adıvar known for?",
+    "expected_answer": "She was a Turkish novelist, political leader, and women's rights advocate",
+    "expected_sources": ["person_halide_edip_adıvar.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q030",
+    "question": "What connects Einstein's work on the photoelectric effect to his Nobel Prize?",
+    "expected_answer": "Einstein received the 1921 Nobel Prize specifically for his explanation of the photoelectric effect",
+    "expected_sources": ["person_albert_einstein.txt"],
+    "difficulty": "hard"
+  },
+  {
+    "id": "q031",
+    "question": "Compare the construction periods of the Eiffel Tower and the Statue of Liberty",
+    "expected_answer": "The Statue of Liberty was dedicated in 1886, the Eiffel Tower was completed in 1889",
+    "expected_sources": ["place_eiffel_tower.txt", "place_statue_of_liberty.txt"],
+    "difficulty": "hard"
+  },
+  {
+    "id": "q032",
+    "question": "What was Kazım Karabekir's role in the Turkish War of Independence?",
+    "expected_answer": "He commanded the Eastern Front and won the Battle of Sarıkamış",
+    "expected_sources": ["person_kazım_karabekir.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q033",
+    "question": "What is the Galata Tower and when was it built?",
+    "expected_answer": "A medieval stone tower in Istanbul, built in 1348 by the Genoese",
+    "expected_sources": ["place_galata_kulesi.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q034",
+    "question": "What were Tesla's contributions to electrical engineering?",
+    "expected_answer": "He developed the alternating current (AC) electrical system, the Tesla coil, and contributed to radio technology",
+    "expected_sources": ["person_nikola_tesla.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q035",
+    "question": "How did the Hagia Sophia change functions throughout history?",
+    "expected_answer": "It was a Christian cathedral, then an Ottoman mosque, then a museum, and was reconverted to a mosque",
+    "expected_sources": ["place_hagia_sophia.txt"],
+    "difficulty": "hard"
+  },
+  {
+    "id": "q036",
+    "question": "What is the population of Istanbul?",
+    "expected_answer": "Over 15 million",
+    "expected_sources": ["place_i̇stanbul.txt"],
+    "difficulty": "easy"
+  },
+  {
+    "id": "q037",
+    "question": "What constitutional reforms did Mithat Pasha introduce?",
+    "expected_answer": "He was the architect of the first Ottoman constitution (Kanun-i Esasi) in 1876",
+    "expected_sources": ["person_mithat_paşa.txt"],
+    "difficulty": "hard"
+  },
+  {
+    "id": "q038",
+    "question": "What is the Danube River's length and which countries does it flow through?",
+    "expected_answer": "About 2,850 km, flows through 10 countries including Germany, Austria, Hungary, Serbia, Romania",
+    "expected_sources": ["place_tuna_nehri.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q039",
+    "question": "What was Fevzi Çakmak's military rank and role?",
+    "expected_answer": "He was a Field Marshal (Mareşal) and served as Chief of the Turkish General Staff",
+    "expected_sources": ["person_fevzi_çakmak.txt"],
+    "difficulty": "medium"
+  },
+  {
+    "id": "q040",
+    "question": "What role did Ali Fuat Cebesoy play in the Turkish independence movement?",
+    "expected_answer": "He was a military commander and one of Atatürk's close associates during the War of Independence",
+    "expected_sources": ["person_ali_fuat_cebesoy.txt"],
+    "difficulty": "medium"
+  }
+]

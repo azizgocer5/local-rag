@@ -4,3 +4,4 @@ sentence-transformers
 rank_bm25
 streamlit
 ollama
+numpy

@@ -1,85 +1,127 @@
-# Technical Recommendations for Improving the RAG System
+# Technical Recommendations – What's Next for V3
 
-This document discusses the technical limitations of the current system and
-recommends improvements focused on retrieval quality, generation accuracy,
-and multilingual capability.
+This document reviews the improvements implemented in V2 and outlines the remaining
+opportunities for a future V3 iteration.
 
-## 1. Multilingual Support — Lessons Learned
+## What V2 Solved
 
-I initially aimed for full multilingual support (English + Turkish). The knowledge
-base already includes Turkish entities and the ingestion script falls back to Turkish
-Wikipedia when English articles aren't available. However, several technical constraints
-forced me to scope down to English-only:
+### Chunking — Fixed ✅
+V1 used a naive 1000-char fixed window that split mid-sentence and mid-word. V2 replaced
+this with a sentence-aware recursive splitter that respects paragraph, line, and sentence
+boundaries. Chunk size was reduced to 500 chars for better retrieval precision, and the
+reranker compensates for any context loss.
 
-- **Embedding model**: `all-MiniLM-L6-v2` is trained primarily on English data. Its
-  semantic representations for Turkish text are weak, causing poor recall for
-  Turkish queries.
-- **BM25 tokenization**: Simple whitespace splitting doesn't handle Turkish morphology.
-  Turkish is agglutinative—a single token can carry meaning that requires multiple
-  English words—so keyword matching underperforms significantly.
-- **LLM response language**: `llama3.2` inconsistently matches the query language,
-  especially when the retrieved contexts mix English and Turkish chunks.
+### Retrieval Precision — Fixed ✅
+V1 passed raw RRF output directly to the LLM. V2 adds a cross-encoder reranking stage
+(`cross-encoder/ms-marco-MiniLM-L-6-v2`) that jointly scores each (query, chunk) pair.
+This improved precision significantly—evaluation shows Hit Rate @5 = 1.0 and MRR = 1.0
+across all 40 test questions.
 
-**Path forward**: Use a multilingual embedding model (e.g., `multilingual-e5-large`),
-language-aware tokenization for BM25 (spaCy/nltk with Turkish models), and
-language-routed collections to separate EN/TR chunks.
+### Embedding Quality — Fixed ✅
+V1 used `all-MiniLM-L6-v2` (384d, English-only). V2 upgraded to `BAAI/bge-large-en-v1.5`
+(1024d) with metadata-enriched embeddings that prepend entity name/type to each chunk
+before encoding. This solved the entity disambiguation problem (e.g., "Cemal Pasha" vs.
+"Djemal" in the text).
 
-## 2. Chunking Strategy
+### BM25 Tokenization — Fixed ✅
+V1 used `str.lower().split()` which kept stopwords and punctuation in tokens. V2 uses
+regex-based word extraction with a curated English stopword list, improving keyword
+matching quality.
 
-The current fixed character window (1000 chars, 100 overlap) is simple but has clear
-downsides—it can split sentences mid-word and creates chunks with uneven semantic density.
+### Query Understanding — Fixed ✅
+V1 searched with the raw user query. V2 adds multi-query expansion (3 LLM-generated
+variants) and conversation memory (follow-up questions are rewritten into standalone
+queries using chat history).
 
-**Recommendations**:
-- **Semantic chunking**: Split on sentence or paragraph boundaries to preserve meaning.
-  Tools like LangChain's `RecursiveCharacterTextSplitter` with separators
-  (`\n\n`, `\n`, `. `) handle this well.
-- **Adaptive chunk sizing**: Shorter chunks improve retrieval precision but lose context;
-  longer chunks preserve context but add noise. A parent-child approach (retrieve
-  small chunks, expand to parent for LLM context) balances both.
+### Evaluation — Fixed ✅
+V1 had no metrics. V2 includes an evaluation framework (`evaluate.py`) with Hit Rate,
+MRR, and NDCG metrics on 40 labeled questions across easy/medium/hard difficulties.
 
-## 3. Retrieval Quality
+### Grounding — Fixed ✅
+V1 had a basic "answer from context" instruction. V2 enforces explicit source citations
+in `[Source: filename, Entity: name]` format and instructs the LLM to match the query
+language.
 
-### Reranking
-The current system uses RRF to fuse results but doesn't rerank them. Adding a
-**cross-encoder reranker** (e.g., `cross-encoder/ms-marco-MiniLM-L-6-v2`) as a
-second stage after RRF fusion would significantly improve precision by scoring each
-query-chunk pair jointly rather than independently.
+## Remaining Opportunities for V3
 
-### Query Expansion
-Complex or ambiguous queries often miss relevant chunks. Techniques like **HyDE**
-(Hypothetical Document Embeddings)—where the LLM first generates a hypothetical
-answer, then that answer is embedded for search—can improve recall on difficult queries.
+### 1. Multilingual Support
 
-### Embedding Model
-`all-MiniLM-L6-v2` is lightweight but limited. Upgrading to a stronger model like
-`e5-large-v2` or `bge-large-en-v1.5` would improve semantic retrieval quality,
-at the cost of higher compute and memory requirements.
+The knowledge base includes Turkish entities with text from Turkish Wikipedia, but the
+current pipeline is English-optimized:
 
-## 4. RRF Tuning
+- **Embedding model**: `bge-large-en-v1.5` is English-only. For true multilingual support,
+  upgrade to `intfloat/multilingual-e5-large` or `BAAI/bge-m3`.
+- **BM25 tokenization**: The regex tokenizer handles Turkish characters but doesn't
+  account for Turkish morphology (agglutinative structure). Consider language-aware
+  tokenization with spaCy's Turkish model.
+- **Language-routed collections**: Separate EN and TR chunks into different ChromaDB
+  collections and route queries to the appropriate collection based on detected language.
 
-The current weights (semantic: 0.9, BM25: 0.1) heavily favor semantic search. This
-works for most natural language queries but underperforms for exact-match lookups
-(specific names, dates, technical terms). An empirical evaluation on a labeled query
-set would help calibrate these weights. The RRF constant (k=60) also affects score
-distribution and could benefit from tuning.
+### 2. HyDE (Hypothetical Document Embeddings)
 
-## 5. Generation & Grounding
+Multi-query expansion generates variant *questions*, but HyDE generates a hypothetical
+*answer* and embeds that for search. Since answers are structurally closer to documents
+than questions are, this can improve recall on factoid queries. This could be offered as
+a toggle alongside multi-query.
 
-- **Citation support**: The LLM should cite which context chunk it drew information
-  from, making answers verifiable.
-- **Confidence scoring**: Track cases where retrieved contexts have low RRF scores—
-  the system should express uncertainty rather than forcing an answer from weak evidence.
-- **Guardrails**: Add prompt-level instructions to prevent the LLM from answering
-  outside the retrieved context, reducing hallucination risk.
+### 3. Parent-Child Chunk Architecture
+
+The current system retrieves 500-char chunks—precise but sometimes lacking context.
+A parent-child approach would:
+- Index **small chunks** (200 chars) for high-precision retrieval
+- Store a mapping to **parent chunks** (1000 chars)
+- Send the parent to the LLM for richer context
+
+This provides the best of both worlds: precision in retrieval, context in generation.
+
+### 4. Adaptive RRF Weight Tuning
+
+The sidebar sliders let users manually tune RRF weights, but optimal weights vary by
+query type. A learned approach could:
+- Analyze query characteristics (entity mention, factoid vs. comparison, etc.)
+- Automatically select weights (e.g., favor BM25 for exact-match queries)
+- Use the evaluation framework to empirically optimize on the labeled dataset
+
+### 5. Confidence Scoring & Fallback
+
+When retrieved contexts have low RRF and rerank scores, the system should express
+uncertainty rather than forcing an answer. Implement:
+- A confidence threshold on rerank scores
+- A "low confidence" warning in the UI when scores are below threshold
+- A fallback response: "I found some potentially relevant information, but I'm not
+  confident it directly answers your question."
+
+### 6. Agentic RAG
+
+Transform the pipeline from single-shot to multi-step:
+- **Self-reflection**: After retrieval, have the LLM evaluate whether the context is
+  sufficient. If not, trigger a refined search with different keywords.
+- **Multi-hop reasoning**: Decompose complex questions into sub-questions, retrieve
+  for each, and synthesize.
+- **Tool selection**: Let the LLM decide whether to search, ask for clarification,
+  or refuse to answer.
+
+### 7. Generation Metrics
+
+The evaluation framework currently measures retrieval quality only. Add generation
+metrics:
+- **Faithfulness**: Does the answer only use context information? (LLM-as-judge)
+- **Answer Relevancy**: Does the answer address the question?
+- **Citation Accuracy**: Are the cited sources actually the ones that contain the
+  claimed information?
 
 ## Summary
 
-| Area                  | Current Approach             | Recommended Improvement              |
-|-----------------------|------------------------------|--------------------------------------|
-| Chunking              | Fixed 1000-char window       | Semantic / sentence-based splitting  |
-| Embedding model       | `all-MiniLM-L6-v2`          | `e5-large-v2` or multilingual model  |
-| Post-retrieval        | None                         | Cross-encoder reranking              |
-| Query handling        | Direct embedding             | HyDE / query expansion               |
-| RRF weights           | 0.9 / 0.1 (hardcoded)       | Empirically tuned on evaluation set  |
-| Multilingual          | English only                 | Multilingual embeddings + tokenizer  |
-| Grounding             | Basic system prompt          | Citations + confidence scoring       |
+| Area                  | V1 Status                  | V2 Status                            | V3 Opportunity                       |
+|-----------------------|----------------------------|--------------------------------------|--------------------------------------|
+| Chunking              | Fixed 1000-char window     | ✅ Sentence-aware recursive          | Parent-child architecture            |
+| Embedding model       | `all-MiniLM-L6-v2` (384d)  | ✅ `bge-large-en-v1.5` (1024d)       | Multilingual model                   |
+| Entity disambiguation | Broken                     | ✅ Metadata-enriched embeddings      | —                                    |
+| Post-retrieval        | None                       | ✅ Cross-encoder reranking           | —                                    |
+| Query handling        | Direct embedding           | ✅ Multi-query + conversation memory | HyDE                                 |
+| BM25 tokenization     | Naive split                | ✅ Regex + stopwords                 | Language-aware (spaCy)               |
+| RRF weights           | Hardcoded                  | ✅ Configurable sidebar              | Adaptive/learned weights             |
+| Grounding             | Basic prompt               | ✅ Source citations                  | Confidence scoring                   |
+| Evaluation            | None                       | ✅ Hit Rate, MRR, NDCG               | Generation metrics (RAGAS)           |
+| Architecture          | Single-shot pipeline       | Single-shot + memory                 | Agentic multi-step RAG              |
+| Multilingual          | English only               | English only                         | Multilingual embeddings + tokenizer  |
