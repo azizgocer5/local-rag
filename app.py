@@ -1,20 +1,20 @@
 """
-app.py – Local RAG Hybrid Search Streamlit Uygulaması (V2)
+app.py – Local RAG Hybrid Search Streamlit App (V2)
 ==========================================================
-ChromaDB (semantic) + BM25 (lexical) ile Hybrid Search yapar,
-sonuçları RRF ile birleştirir, Cross-Encoder ile rerank eder
-ve Ollama (llama3.2) üzerinden LLM yanıtı üretir.
+Performs Hybrid Search using ChromaDB (semantic) + BM25 (lexical),
+merges results with RRF, reranks with Cross-Encoder
+and generates LLM response via Ollama (llama3.2).
 
-V2 Değişiklikleri:
-  - BAAI/bge-large-en-v1.5 embedding modeli (query prefix desteği)
+V2 Changes:
+  - BAAI/bge-large-en-v1.5 embedding model (query prefix support)
   - Cross-encoder reranking (ms-marco-MiniLM-L-6-v2)
-  - Multi-query expansion (Ollama ile sorgu varyantları)
-  - Conversation memory (follow-up sorular için)
-  - Configurable RRF weights (sidebar'dan ayarlanabilir)
-  - Source citations (LLM yanıtlarında kaynak gösterimi)
-  - Geliştirilmiş BM25 tokenizasyonu (regex + stopword)
+  - Multi-query expansion (query variants with Ollama)
+  - Conversation memory (for follow-up questions)
+  - Configurable RRF weights (adjustable from sidebar)
+  - Source citations (showing sources in LLM responses)
+  - Improved BM25 tokenization (regex + stopword)
 
-Kullanım:
+Usage:
   streamlit run app.py
 """
 
@@ -30,13 +30,13 @@ import chromadb
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import ollama
 
-# Windows konsolunda Türkçe karakter sorunu
+# Turkish character issue in Windows console
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
 # ======================================================================
-# Ayarlar
+# Settings
 # ======================================================================
 
 CHROMA_DIR = "./chroma_db"
@@ -50,10 +50,10 @@ RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 OLLAMA_MODEL = "llama3.2"
 
-# Rerank: hybrid search'ten kaç kat fazla aday çekilsin
+# Rerank: how many times more candidates to fetch from hybrid search
 RERANK_FETCH_MULTIPLIER = 4
 
-# Conversation memory: son kaç tur dahil edilsin
+# Conversation memory: how many last turns to include
 MAX_HISTORY_TURNS = 3
 
 SYSTEM_PROMPT = """You are an expert AI assistant.
@@ -85,7 +85,7 @@ Follow-up question: {question}
 
 Rewrite the question as a standalone search query. Output ONLY the rewritten question, nothing else."""
 
-# BM25 stopword listesi
+# BM25 stopword list
 STOPWORDS = frozenset({
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
     "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
@@ -103,38 +103,38 @@ STOPWORDS = frozenset({
 
 
 def tokenize(text: str) -> list[str]:
-    """Regex tabanlı tokenizasyon + stopword filtreleme."""
+    """Regex-based tokenization + stopword filtering."""
     tokens = re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜâîûêô0-9]+", text.lower())
     return [t for t in tokens if t not in STOPWORDS and len(t) > 1]
 
 
 # ======================================================================
-# Kaynak Yükleme (Cache)
+# Resource Loading (Cache)
 # ======================================================================
 
-@st.cache_resource(show_spinner="Embedding modeli yükleniyor...")
+@st.cache_resource(show_spinner="Loading embedding model...")
 def load_embedding_model():
-    """SentenceTransformer modelini yükler ve cache'ler."""
+    """Loads and caches the SentenceTransformer model."""
     return SentenceTransformer(EMBEDDING_MODEL_NAME)
 
 
-@st.cache_resource(show_spinner="Reranker modeli yükleniyor...")
+@st.cache_resource(show_spinner="Loading reranker model...")
 def load_reranker():
-    """Cross-encoder reranker modelini yükler ve cache'ler."""
+    """Loads and caches the Cross-encoder reranker model."""
     return CrossEncoder(RERANKER_MODEL_NAME)
 
 
-@st.cache_resource(show_spinner="ChromaDB bağlantısı kuruluyor...")
+@st.cache_resource(show_spinner="Connecting to ChromaDB...")
 def load_chroma():
-    """ChromaDB client'ını ve collection'ı yükler."""
+    """Loads ChromaDB client and collection."""
     client = chromadb.PersistentClient(path=CHROMA_DIR)
     collection = client.get_collection(name=COLLECTION_NAME)
     return collection
 
 
-@st.cache_resource(show_spinner="BM25 indeksi yükleniyor...")
+@st.cache_resource(show_spinner="Loading BM25 index...")
 def load_bm25():
-    """BM25 indeksini ve chunk/metadata listelerini pickle'dan yükler."""
+    """Loads BM25 index and chunk/metadata lists from pickle."""
     with open(BM25_PATH, "rb") as f:
         data = pickle.load(f)
     return data["bm25"], data["chunks"], data["metadatas"], data["ids"]
@@ -146,13 +146,13 @@ def load_bm25():
 
 def rewrite_query_with_context(question: str, history: list[dict]) -> str:
     """
-    Chat geçmişini kullanarak follow-up soruları bağımsız sorulara dönüştürür.
-    Örn: "He" → "Albert Einstein" (geçmişe göre)
+    Rewrites follow-up questions into independent questions using chat history.
+    E.g.: "He" → "Albert Einstein" (based on history)
     """
     if not history:
         return question
 
-    # Son N turu al
+    # Get the last N turns
     recent = history[-(MAX_HISTORY_TURNS * 2):]
     history_text = ""
     for msg in recent:
@@ -179,8 +179,8 @@ def rewrite_query_with_context(question: str, history: list[dict]) -> str:
 
 def generate_query_variants(question: str) -> list[str]:
     """
-    Ollama kullanarak sorgunun 3 farklı varyantını üretir.
-    Hata durumunda sadece orijinal soruyu döndürür.
+    Generates 3 different variants of the query using Ollama.
+    Returns only the original question in case of an error.
     """
     try:
         response = ollama.chat(
@@ -190,7 +190,7 @@ def generate_query_variants(question: str) -> list[str]:
         )
         content = response["message"]["content"].strip()
 
-        # LLM bazen markdown code block ile sarar, temizle
+        # LLM sometimes wraps with markdown code block, clean it
         if content.startswith("```"):
             content = content.split("\n", 1)[1]
             content = content.rsplit("```", 1)[0]
@@ -214,9 +214,9 @@ def hybrid_search(query: str, top_k: int,
                   bm25_weight: float = 0.1,
                   rrf_k: int = 60) -> list[dict]:
     """
-    Semantic (ChromaDB) + BM25 hibrit araması yapar.
-    Sonuçları RRF (Reciprocal Rank Fusion) ile birleştirir.
-    RRF ağırlıkları ve K sabiti dışarıdan ayarlanabilir.
+    Performs Semantic (ChromaDB) + BM25 hybrid search.
+    Merges results with RRF (Reciprocal Rank Fusion).
+    RRF weights and K constant can be adjusted externally.
     """
     collection = load_chroma()
     model = load_embedding_model()
@@ -225,7 +225,7 @@ def hybrid_search(query: str, top_k: int,
     fetch_k = min(top_k * 4, len(bm25_chunks))
 
     # ----- Semantic Search (ChromaDB) -----
-    # bge-large-en-v1.5: sorgular için prefix gerekli
+    # bge-large-en-v1.5: prefix is required for queries
     query_embedding = model.encode([BGE_QUERY_PREFIX + query]).tolist()
 
     chroma_results = collection.query(
@@ -234,7 +234,7 @@ def hybrid_search(query: str, top_k: int,
         include=["documents", "metadatas", "distances"],
     )
 
-    # ChromaDB sonuçlarını ID -> rank haritasına çevir
+    # Convert ChromaDB results to ID -> rank map
     semantic_rank_map = {}
     semantic_docs = {}
 
@@ -264,7 +264,7 @@ def hybrid_search(query: str, top_k: int,
         if bm25_scores[idx] > 0:
             bm25_rank_map[idx] = rank
 
-    # ----- RRF Birleştirme -----
+    # ----- RRF Merging -----
     all_indices = set(semantic_rank_map.keys()) | set(bm25_rank_map.keys())
     rrf_scores = {}
 
@@ -286,7 +286,7 @@ def hybrid_search(query: str, top_k: int,
         results.append({
             "rank": final_rank,
             "text": text,
-            "source": metadata.get("source", "bilinmiyor"),
+            "source": metadata.get("source", "unknown"),
             "name": metadata.get("name", ""),
             "type": metadata.get("type", ""),
             "rrf_score": rrf_scores[idx],
@@ -303,8 +303,8 @@ def hybrid_search(query: str, top_k: int,
 
 def rerank_results(query: str, candidates: list[dict], top_k: int) -> list[dict]:
     """
-    Cross-encoder ile sonuçları yeniden sıralar.
-    Her (query, chunk) çiftini birlikte puanlar.
+    Reranks results using Cross-encoder.
+    Scores each (query, chunk) pair together.
     """
     if not candidates:
         return candidates
@@ -334,8 +334,8 @@ def hybrid_search_multi_query(query: str, top_k: int,
                               bm25_weight: float = 0.1,
                               rrf_k: int = 60) -> list[dict]:
     """
-    Multi-query expansion ile hybrid search.
-    Her varyant için ayrı arama yapar, en iyi sonuçları birleştirir.
+    Hybrid search with multi-query expansion.
+    Performs separate search for each variant, merges the best results.
     """
     variants = generate_query_variants(query)
 
@@ -359,12 +359,12 @@ def hybrid_search_multi_query(query: str, top_k: int,
 
 
 # ======================================================================
-# LLM Yanıt Üretimi (Ollama – Streaming)
+# LLM Response Generation (Ollama – Streaming)
 # ======================================================================
 
 def build_prompt_messages(question: str, contexts: list[dict],
                           history: list[dict] = None) -> list[dict]:
-    """Sistem promptu + context bloğu + geçmiş + kullanıcı sorusunu mesaj listesine dönüştürür."""
+    """Converts system prompt + context block + history + user question into a message list."""
     context_block = ""
     for c in contexts:
         source = c["source"]
@@ -380,7 +380,7 @@ def build_prompt_messages(question: str, contexts: list[dict],
 
     messages = [{"role": "system", "content": system_content}]
 
-    # Conversation memory: son N tur geçmişi ekle
+    # Conversation memory: add last N turns history
     if history:
         recent = history[-(MAX_HISTORY_TURNS * 2):]
         for msg in recent:
@@ -392,7 +392,7 @@ def build_prompt_messages(question: str, contexts: list[dict],
 
 
 def stream_ollama_response(messages: list[dict]):
-    """Ollama'dan streaming yanıt üretir; bir generator döndürür."""
+    """Generates streaming response from Ollama; returns a generator."""
     stream = ollama.chat(
         model=OLLAMA_MODEL,
         messages=messages,
@@ -423,37 +423,37 @@ st.caption(
 
 # ----- Sidebar -----
 with st.sidebar:
-    st.header("⚙️ Arama Ayarları")
+    st.header("⚙️ Search Settings")
 
     top_k = st.slider(
         "Top-K Contexts",
         min_value=1,
         max_value=10,
         value=5,
-        help="Son aşamada LLM'e kaç bağlam parçası gönderilsin?",
+        help="How many context pieces should be sent to the LLM in the final stage?",
     )
 
     st.divider()
 
     # Configurable RRF Weights
-    st.header("⚖️ RRF Parametreleri")
+    st.header("⚖️ RRF Parameters")
 
     semantic_weight = st.slider(
-        "Semantic Ağırlık",
+        "Semantic Weight",
         min_value=0.0, max_value=1.0, value=0.9, step=0.05,
-        help="ChromaDB semantic search ağırlığı",
+        help="ChromaDB semantic search weight",
     )
 
     bm25_weight = st.slider(
-        "BM25 Ağırlık",
+        "BM25 Weight",
         min_value=0.0, max_value=1.0, value=0.1, step=0.05,
-        help="BM25 keyword search ağırlığı",
+        help="BM25 keyword search weight",
     )
 
     rrf_k = st.slider(
-        "RRF K Sabiti",
+        "RRF K Constant",
         min_value=1, max_value=100, value=60,
-        help="Daha yüksek K → daha düzgün sıralama",
+        help="Higher K → smoother ranking",
     )
 
     st.divider()
@@ -462,13 +462,13 @@ with st.sidebar:
     use_multi_query = st.checkbox(
         "🔄 Multi-Query Expansion",
         value=True,
-        help="Ollama ile 3 sorgu varyantı üretip hepsini arar",
+        help="Generates 3 query variants with Ollama and searches all of them",
     )
 
     st.divider()
 
-    # Veritabanı bilgisi
-    st.header("📊 Veritabanı Bilgisi")
+    # Database info
+    st.header("📊 Database Info")
     try:
         collection = load_chroma()
         chunk_count = collection.count()
@@ -476,16 +476,16 @@ with st.sidebar:
         st.metric("ChromaDB Chunk", chunk_count)
         st.metric("BM25 Chunk", len(bm25_chunks_ref))
     except Exception as e:
-        st.error(f"Veritabanı yüklenemedi: {e}")
+        st.error(f"Failed to load database: {e}")
 
     st.divider()
 
-    if st.button("🗑️ Geçmişi Temizle", use_container_width=True):
+    if st.button("🗑️ Clear History", use_container_width=True):
         st.session_state["messages"] = []
         st.rerun()
 
 
-# ----- Chat Geçmişi -----
+# ----- Chat History -----
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
 
@@ -532,7 +532,7 @@ for msg in st.session_state["messages"]:
 
 
 # ----- Chat Input -----
-if user_input := st.chat_input("Bir soru sorun... (Örn: Einstein'ın Nobel ödülü nedir?)"):
+if user_input := st.chat_input("Ask a question... (E.g.: What is Einstein's Nobel prize?)"):
     st.session_state["messages"].append({"role": "user", "content": user_input})
 
     with st.chat_message("user"):
@@ -541,12 +541,12 @@ if user_input := st.chat_input("Bir soru sorun... (Örn: Einstein'ın Nobel öd�
     with st.chat_message("assistant"):
         t0 = time.perf_counter()
 
-        # 1) Conversation Memory: follow-up soruları yeniden yaz
-        history = st.session_state["messages"][:-1]  # son eklenen user mesajı hariç
+        # 1) Conversation Memory: rewrite follow-up questions
+        history = st.session_state["messages"][:-1]  # excluding the last added user message
         search_query = rewrite_query_with_context(user_input, history)
 
-        # 2) Hybrid Search (multi-query veya tekli)
-        with st.spinner("🔎 Hybrid Search + Reranking yapılıyor..."):
+        # 2) Hybrid Search (multi-query or single)
+        with st.spinner("🔎 Performing Hybrid Search + Reranking..."):
             try:
                 if use_multi_query:
                     candidates = hybrid_search_multi_query(
@@ -569,23 +569,23 @@ if user_input := st.chat_input("Bir soru sorun... (Örn: Einstein'ın Nobel öd�
                 search_time_ms = (time.perf_counter() - t0) * 1000.0
 
             except Exception as e:
-                st.error(f"Arama hatası: {e}")
+                st.error(f"Search error: {e}")
                 st.session_state["messages"].append({
                     "role": "assistant",
-                    "content": f"❌ Arama hatası: {e}",
+                    "content": f"❌ Search error: {e}",
                 })
                 st.stop()
 
-        # 4) LLM Yanıt (Streaming) — geçmiş dahil
+        # 4) LLM Response (Streaming) — including history
         messages = build_prompt_messages(user_input, contexts, history=history)
 
         try:
             answer = st.write_stream(stream_ollama_response(messages))
         except Exception as e:
             err_msg = (
-                f"❌ Ollama bağlantı hatası: {e}\n\n"
-                f"Ollama'nın çalıştığından ve `{OLLAMA_MODEL}` modelinin "
-                f"yüklü olduğundan emin olun:\n"
+                f"❌ Ollama connection error: {e}\n\n"
+                f"Ensure Ollama is running and the `{OLLAMA_MODEL}` model "
+                f"is installed:\n"
                 f"```\nollama pull {OLLAMA_MODEL}\n```"
             )
             st.error(err_msg)
@@ -622,7 +622,7 @@ if user_input := st.chat_input("Bir soru sorun... (Örn: Einstein'ın Nobel öd�
                 st.text(c["text"][:800])
                 st.divider()
 
-        # 6) Session state'e kaydet
+        # 6) Save to session state
         st.session_state["messages"].append({
             "role": "assistant",
             "content": answer,
@@ -642,5 +642,5 @@ st.caption(
     "Conversation memory · Source citations"
 )
 
-# Çalıştırma:
+# Run:
 # streamlit run app.py

@@ -1,20 +1,20 @@
 """
-build_db.py – Hybrid Search Veritabanı Oluşturucu (V2)
+build_db.py – Hybrid Search Database Builder (V2)
 ======================================================
-data/ klasöründeki Wikipedia .txt dosyalarını okur, cümle-duyarlı
-parçalama ile böler ve hem ChromaDB vektör veritabanına hem de
-BM25 indeksine kaydeder.
+Reads Wikipedia .txt files from the data/ directory,
+splits them with sentence-aware chunking, and saves them
+to both the ChromaDB vector database and BM25 index.
 
-V2 Değişiklikleri:
-  - Cümle-duyarlı recursive chunking (sabit pencere yerine)
-  - BAAI/bge-large-en-v1.5 embedding modeli (all-MiniLM-L6-v2 yerine)
-  - Regex tabanlı tokenizasyon + stopword filtreleme (BM25 için)
+V2 Changes:
+  - Sentence-aware recursive chunking (instead of fixed window)
+  - BAAI/bge-large-en-v1.5 embedding model (instead of all-MiniLM-L6-v2)
+  - Regex-based tokenization + stopword filtering (for BM25)
 
-Çıktılar:
-  ./chroma_db/     – ChromaDB kalıcı veritabanı (collection: wiki_rag)
-  bm25_index.pkl   – BM25Okapi indeksi + chunk listesi (pickle)
+Outputs:
+  ./chroma_db/     – ChromaDB persistent database (collection: wiki_rag)
+  bm25_index.pkl   – BM25Okapi index + chunk list (pickle)
 
-Kullanım:
+Usage:
   python build_db.py
 """
 
@@ -28,14 +28,14 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
 
-# Windows konsolunda Türkçe karakter sorunu yaşanmaması için
-# stdout'u UTF-8'e zorla
+# To prevent Turkish character issues in the Windows console
+# force stdout to UTF-8
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
 # ======================================================================
-# Ayarlar
+# Settings
 # ======================================================================
 
 DATA_DIR = "./data"
@@ -45,14 +45,14 @@ COLLECTION_NAME = "wiki_rag"
 
 EMBEDDING_MODEL_NAME = "BAAI/bge-large-en-v1.5"
 
-CHUNK_SIZE = 500        # karakter (V1: 1000)
-CHUNK_OVERLAP = 50      # karakter (V1: 100)
+CHUNK_SIZE = 500        # characters (V1: 1000)
+CHUNK_OVERLAP = 50      # characters (V1: 100)
 
-# Cümle-duyarlı parçalama için hiyerarşik ayraçlar
-# Önce paragraf → satır → cümle → boşluk sırasıyla dener
+# Hierarchical separators for sentence-aware chunking
+# Tries paragraph → line → sentence → space in order
 SEPARATORS = ["\n\n", "\n", ". ", " "]
 
-# BM25 tokenizasyonu için İngilizce stopword listesi
+# English stopword list for BM25 tokenization
 STOPWORDS = frozenset({
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
     "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
@@ -70,36 +70,36 @@ STOPWORDS = frozenset({
 
 
 # ======================================================================
-# Yardımcı fonksiyonlar
+# Helper functions
 # ======================================================================
 
 def read_txt_file(filepath: str) -> str:
-    """Bir .txt dosyasını UTF-8 ile okur ve içeriğini döndürür."""
+    """Reads a .txt file with UTF-8 and returns its content."""
     with open(filepath, "r", encoding="utf-8", errors="replace") as f:
         return f.read()
 
 
 def tokenize(text: str) -> list[str]:
     """
-    Regex tabanlı tokenizasyon.
-    Küçük harfe çevirir, kelime token'larını çıkarır, stopword'leri filtreler.
-    Türkçe karakterleri de destekler.
+    Regex-based tokenization.
+    Converts to lowercase, extracts word tokens, and filters stopwords.
+    Also supports Turkish characters.
     """
     tokens = re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜâîûêô0-9]+", text.lower())
     return [t for t in tokens if t not in STOPWORDS and len(t) > 1]
 
 
 # ======================================================================
-# Cümle-Duyarlı Recursive Chunking (Pure Python – LangChain yok)
+# Sentence-Aware Recursive Chunking (Pure Python – no LangChain)
 # ======================================================================
 
 def split_by_separator(text: str, separator: str) -> list[str]:
     """
-    Metni ayraç ile böler, ayracı parçanın sonunda tutar.
-    Cümle sonu ('. ') ayracında nokta cümleye dahil edilir.
+    Splits text by separator, keeping the separator at the end of the piece.
+    For end-of-sentence ('. ') separator, the dot is included in the sentence.
     """
     if separator == ". ":
-        # Noktayı cümleyle birlikte tut
+        # Keep the dot with the sentence
         parts = text.split(separator)
         return [p + ". " for p in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
     else:
@@ -109,16 +109,16 @@ def split_by_separator(text: str, separator: str) -> list[str]:
 
 def recursive_chunk(text: str, chunk_size: int, separators: list[str]) -> list[str]:
     """
-    Metni hiyerarşik ayraçlarla chunk_size'a sığacak şekilde recursive böler.
-    Ayraç sırası: paragraf (\\n\\n) → satır (\\n) → cümle ('. ') → boşluk (' ')
+    Recursively chunks the text using hierarchical separators to fit chunk_size.
+    Separator order: paragraph (\n\n) → line (\n) → sentence ('. ') → space (' ')
     
-    LangChain RecursiveCharacterTextSplitter mantığının saf Python implementasyonu.
+    Pure Python implementation of LangChain's RecursiveCharacterTextSplitter logic.
     """
-    # Temel durum: metin zaten chunk_size'a sığıyorsa
+    # Base case: if text already fits in chunk_size
     if len(text.strip()) <= chunk_size:
         return [text.strip()] if text.strip() else []
 
-    # Her ayracı sırayla dene
+    # Try each separator in order
     for i, sep in enumerate(separators):
         if sep not in text:
             continue
@@ -127,7 +127,7 @@ def recursive_chunk(text: str, chunk_size: int, separators: list[str]) -> list[s
         if len(pieces) <= 1:
             continue
 
-        # Parçaları chunk_size'a sığacak şekilde birleştir
+        # Combine pieces to fit within chunk_size
         chunks = []
         current = ""
 
@@ -137,7 +137,7 @@ def recursive_chunk(text: str, chunk_size: int, separators: list[str]) -> list[s
             else:
                 if current.strip():
                     chunks.append(current.strip())
-                # Tek bir parça bile chunk_size'ı aşıyorsa, bir sonraki ayraçla recursive böl
+                # If even a single piece exceeds chunk_size, split recursively with the next separator
                 if len(piece) > chunk_size and i + 1 < len(separators):
                     sub_chunks = recursive_chunk(piece, chunk_size, separators[i + 1:])
                     chunks.extend(sub_chunks)
@@ -151,7 +151,7 @@ def recursive_chunk(text: str, chunk_size: int, separators: list[str]) -> list[s
         if chunks:
             return chunks
 
-    # Hiçbir ayraç işe yaramadıysa, hard split (nadiren olur)
+    # If no separator worked, hard split (rarely happens)
     return [text[j:j + chunk_size].strip()
             for j in range(0, len(text), chunk_size)
             if text[j:j + chunk_size].strip()]
@@ -159,21 +159,21 @@ def recursive_chunk(text: str, chunk_size: int, separators: list[str]) -> list[s
 
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
     """
-    Cümle-duyarlı parçalama + overlap ekleme.
-    1. Hiyerarşik ayraçlarla recursive böl.
-    2. Her chunk'ın başına önceki chunk'ın son chunk_overlap karakterini ekle.
+    Sentence-aware chunking + adding overlap.
+    1. Split recursively with hierarchical separators.
+    2. Prepend the last chunk_overlap characters of the previous chunk to each chunk.
     """
     raw_chunks = recursive_chunk(text, chunk_size, SEPARATORS)
 
     if len(raw_chunks) <= 1:
         return raw_chunks
 
-    # Overlap ekle: önceki chunk'ın sonundan chunk_overlap karakter al
+    # Add overlap: take the last chunk_overlap characters from the previous chunk
     final_chunks = [raw_chunks[0]]
     for i in range(1, len(raw_chunks)):
         prev = raw_chunks[i - 1]
         overlap_text = prev[-chunk_overlap:] if len(prev) >= chunk_overlap else prev
-        # Kelime ortasından kesmemek için boşluk sınırına kaydır
+        # Shift to space boundary to avoid cutting in the middle of a word
         space_idx = overlap_text.find(" ")
         if space_idx != -1:
             overlap_text = overlap_text[space_idx + 1:]
@@ -184,12 +184,12 @@ def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
 
 def parse_filename(filename: str) -> dict:
     """
-    Dosya isminden varlık tipi ve adını çıkarır.
-    Örn: "person_albert_einstein.txt" -> {"type": "person", "name": "albert einstein"}
+    Extracts entity type and name from the filename.
+    E.g.: "person_albert_einstein.txt" -> {"type": "person", "name": "albert einstein"}
     """
     name_no_ext = os.path.splitext(filename)[0]  # person_albert_einstein
 
-    # İlk alt çizgi, tipi (person/place) ayırır
+    # The first underscore separates the type (person/place)
     parts = name_no_ext.split("_", 1)
 
     if len(parts) == 2:
@@ -203,25 +203,25 @@ def parse_filename(filename: str) -> dict:
 
 
 # ======================================================================
-# Ana işlem
+# Main process
 # ======================================================================
 
 def main():
     t_start = time.perf_counter()
 
     print("=" * 60)
-    print("  Local RAG V2 – Hybrid Search Veritabanı Oluşturucu")
+    print("  Local RAG V2 – Hybrid Search Database Builder")
     print("=" * 60)
-    print(f"  Embedding modeli : {EMBEDDING_MODEL_NAME}")
-    print(f"  Chunk boyutu     : {CHUNK_SIZE} karakter")
-    print(f"  Chunk overlap    : {CHUNK_OVERLAP} karakter")
-    print(f"  Chunking yöntemi : Cümle-duyarlı recursive")
-    print(f"  Tokenizasyon     : Regex + stopword filtreleme")
+    print(f"  Embedding model  : {EMBEDDING_MODEL_NAME}")
+    print(f"  Chunk size       : {CHUNK_SIZE} characters")
+    print(f"  Chunk overlap    : {CHUNK_OVERLAP} characters")
+    print(f"  Chunking method  : Sentence-aware recursive")
+    print(f"  Tokenization     : Regex + stopword filtering")
     print("=" * 60 + "\n")
 
-    # ----- 1. data/ klasöründeki .txt dosyalarını bul -----
+    # ----- 1. Find .txt files in the data/ directory -----
     if not os.path.isdir(DATA_DIR):
-        print(f"[HATA] '{DATA_DIR}' klasörü bulunamadı!")
+        print(f"[ERROR] '{DATA_DIR}' directory not found!")
         return
 
     txt_files = sorted([
@@ -229,16 +229,16 @@ def main():
     ])
 
     if not txt_files:
-        print(f"[HATA] '{DATA_DIR}' klasöründe .txt dosyası bulunamadı!")
+        print(f"[ERROR] No .txt files found in the '{DATA_DIR}' directory!")
         return
 
-    print(f"[INFO] {len(txt_files)} adet .txt dosyası bulundu.\n")
+    print(f"[INFO] Found {len(txt_files)} .txt files.\n")
 
-    # ----- 2. Dosyaları oku ve parçala (cümle-duyarlı) -----
-    all_chunks = []       # chunk metinleri (orijinal – BM25 ve görüntüleme için)
-    all_enriched = []     # metadata-zenginleştirilmiş metinler (embedding için)
-    all_metadatas = []    # her chunk'ın metadata'sı
-    all_ids = []          # ChromaDB için benzersiz ID'ler
+    # ----- 2. Read and chunk files (sentence-aware) -----
+    all_chunks = []       # chunk texts (original – for BM25 and display)
+    all_enriched = []     # metadata-enriched texts (for embedding)
+    all_metadatas = []    # metadata of each chunk
+    all_ids = []          # unique IDs for ChromaDB
 
     for filename in txt_files:
         filepath = os.path.join(DATA_DIR, filename)
@@ -260,58 +260,58 @@ def main():
             all_metadatas.append(metadata)
             all_ids.append(chunk_id)
 
-            # Embedding için metadata ile zenginleştirilmiş metin oluştur
-            # Bu, varlık adını embedding uzayına yerleştirir
-            # Örn: "cemal paşa (person): === Military trial === ..."
+            # Create a text enriched with metadata for embedding
+            # This embeds the entity name into the embedding space
+            # E.g.: "cemal paşa (person): === Military trial === ..."
             enriched = f"{meta_info['name']} ({meta_info['type']}): {chunk}"
             all_enriched.append(enriched)
 
         print(f"  [OK] {filename:<45} -> {len(chunks):>4} chunk")
 
-    print(f"\n[INFO] Toplam chunk sayısı: {len(all_chunks)}")
+    print(f"\n[INFO] Total number of chunks: {len(all_chunks)}")
 
-    # Chunk boyut istatistikleri
+    # Chunk size statistics
     chunk_lengths = [len(c) for c in all_chunks]
     avg_len = sum(chunk_lengths) / len(chunk_lengths) if chunk_lengths else 0
-    print(f"[INFO] Chunk boyut istatistikleri: "
+    print(f"[INFO] Chunk size statistics: "
           f"min={min(chunk_lengths)}, max={max(chunk_lengths)}, "
-          f"avg={avg_len:.0f} karakter")
+          f"avg={avg_len:.0f} characters")
 
-    # ----- 3. Embedding modeli yükle -----
-    print(f"\n[INFO] Embedding modeli yükleniyor: {EMBEDDING_MODEL_NAME} ...")
+    # ----- 3. Load embedding model -----
+    print(f"\n[INFO] Loading embedding model: {EMBEDDING_MODEL_NAME} ...")
     t0 = time.perf_counter()
     model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    print(f"[INFO] Model yüklendi. ({(time.perf_counter() - t0):.1f}s)\n")
+    print(f"[INFO] Model loaded. ({(time.perf_counter() - t0):.1f}s)\n")
 
-    # ----- 4. Tüm chunk'ları vektöre çevir -----
-    print("[INFO] Embedding'ler hesaplanıyor (metadata-enriched) ...")
+    # ----- 4. Convert all chunks to vectors -----
+    print("[INFO] Calculating embeddings (metadata-enriched) ...")
     t0 = time.perf_counter()
-    # bge-large-en-v1.5: dokümanlar için prefix gerekmez
-    # Embedding'ler zenginleştirilmiş metinlerden hesaplanır (varlık adı dahil)
-    # ancak ChromaDB'ye ve BM25'e orijinal chunk metinleri kaydedilir
+    # bge-large-en-v1.5: prefix is not required for documents
+    # Embeddings are calculated from enriched texts (including entity name)
+    # but original chunk texts are saved to ChromaDB and BM25
     embeddings = model.encode(all_enriched, show_progress_bar=True, batch_size=32)
     embeddings_list = embeddings.tolist()
-    print(f"[INFO] Embedding tamamlandı. ({(time.perf_counter() - t0):.1f}s)")
-    print(f"[INFO] Embedding boyutu: {len(embeddings_list[0])}d\n")
+    print(f"[INFO] Embedding completed. ({(time.perf_counter() - t0):.1f}s)")
+    print(f"[INFO] Embedding dimension: {len(embeddings_list[0])}d\n")
 
-    # ----- 5. ChromaDB'ye kaydet -----
-    print(f"[INFO] ChromaDB oluşturuluyor: {CHROMA_DIR} ...")
+    # ----- 5. Save to ChromaDB -----
+    print(f"[INFO] Creating ChromaDB: {CHROMA_DIR} ...")
     t0 = time.perf_counter()
 
     client = chromadb.PersistentClient(path=CHROMA_DIR)
 
-    # Varsa eski collection'ı sil
+    # Delete old collection if it exists
     existing_collections = [c.name for c in client.list_collections()]
     if COLLECTION_NAME in existing_collections:
         client.delete_collection(COLLECTION_NAME)
-        print(f"  [INFO] Eski '{COLLECTION_NAME}' collection silindi.")
+        print(f"  [INFO] Old '{COLLECTION_NAME}' collection deleted.")
 
     collection = client.create_collection(
         name=COLLECTION_NAME,
         metadata={"hnsw:space": "cosine"},
     )
 
-    # ChromaDB tek seferde çok büyük batch kabul etmeyebilir, parçalayarak ekle
+    # ChromaDB might not accept very large batches at once, add in chunks
     BATCH_SIZE = 500
     for batch_start in range(0, len(all_chunks), BATCH_SIZE):
         batch_end = min(batch_start + BATCH_SIZE, len(all_chunks))
@@ -322,17 +322,17 @@ def main():
             metadatas=all_metadatas[batch_start:batch_end],
         )
 
-    print(f"  [OK] ChromaDB'ye {collection.count()} chunk kaydedildi. ({(time.perf_counter() - t0):.1f}s)")
+    print(f"  [OK] {collection.count()} chunks saved to ChromaDB. ({(time.perf_counter() - t0):.1f}s)")
 
-    # ----- 6. BM25 indeksi oluştur ve kaydet -----
-    print(f"\n[INFO] BM25 indeksi oluşturuluyor ...")
+    # ----- 6. Create and save BM25 index -----
+    print(f"\n[INFO] Creating BM25 index ...")
     t0 = time.perf_counter()
 
-    # Geliştirilmiş tokenizasyon: regex + stopword filtreleme
+    # Improved tokenization: regex + stopword filtering
     tokenized_corpus = [tokenize(chunk) for chunk in all_chunks]
     bm25_index = BM25Okapi(tokenized_corpus)
 
-    # Pickle ile kaydet (BM25 objesi + chunk listesi + metadata listesi)
+    # Save with Pickle (BM25 object + chunk list + metadata list)
     bm25_data = {
         "bm25": bm25_index,
         "chunks": all_chunks,
@@ -343,20 +343,20 @@ def main():
     with open(BM25_PATH, "wb") as f:
         pickle.dump(bm25_data, f)
 
-    print(f"  [OK] BM25 indeksi '{BM25_PATH}' dosyasına kaydedildi. ({(time.perf_counter() - t0):.1f}s)")
+    print(f"  [OK] BM25 index saved to '{BM25_PATH}'. ({(time.perf_counter() - t0):.1f}s)")
 
-    # ----- Özet -----
+    # ----- Summary -----
     total_time = time.perf_counter() - t_start
     print("\n" + "=" * 60)
-    print(f"  Toplam dosya     : {len(txt_files)}")
-    print(f"  Toplam chunk     : {len(all_chunks)}")
-    print(f"  Embedding modeli : {EMBEDDING_MODEL_NAME}")
-    print(f"  Embedding boyutu : {len(embeddings_list[0])}d")
+    print(f"  Total files      : {len(txt_files)}")
+    print(f"  Total chunks     : {len(all_chunks)}")
+    print(f"  Embedding model  : {EMBEDDING_MODEL_NAME}")
+    print(f"  Embedding dim    : {len(embeddings_list[0])}d")
     print(f"  ChromaDB         : {os.path.abspath(CHROMA_DIR)}")
-    print(f"  BM25 dosyası     : {os.path.abspath(BM25_PATH)}")
-    print(f"  Toplam süre      : {total_time:.1f}s")
+    print(f"  BM25 file        : {os.path.abspath(BM25_PATH)}")
+    print(f"  Total time       : {total_time:.1f}s")
     print("=" * 60)
-    print("[OK] Hybrid search veritabanı başarıyla oluşturuldu! (V2)")
+    print("[OK] Hybrid search database successfully created! (V2)")
 
 
 if __name__ == "__main__":

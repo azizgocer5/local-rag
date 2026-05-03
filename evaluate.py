@@ -1,15 +1,15 @@
 """
 evaluate.py – RAG Retrieval Evaluation Framework
 =================================================
-eval/ground_truth.json dosyasındaki soru-cevap çiftlerini kullanarak
-hybrid search pipeline'ının retrieval kalitesini ölçer.
+Measures the retrieval quality of the hybrid search pipeline using
+the question-answer pairs in eval/ground_truth.json.
 
-Metrikler:
-  - Hit Rate @K  : Doğru kaynağın Top-K'da bulunma oranı
+Metrics:
+  - Hit Rate @K  : The rate at which the correct source is found in Top-K
   - MRR          : Mean Reciprocal Rank
   - NDCG @K      : Normalized Discounted Cumulative Gain
 
-Kullanım:
+Usage:
   python evaluate.py
   python evaluate.py --top_k 3
   python evaluate.py --no-rerank
@@ -29,13 +29,13 @@ import chromadb
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from rank_bm25 import BM25Okapi
 
-# Windows konsolunda Türkçe karakter sorunu
+# Turkish character issue in Windows console
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
 # ======================================================================
-# Ayarlar (app.py ile aynı)
+# Settings (same as app.py)
 # ======================================================================
 
 CHROMA_DIR = "./chroma_db"
@@ -63,30 +63,30 @@ STOPWORDS = frozenset({
 
 
 def tokenize(text: str) -> list[str]:
-    """Regex tabanlı tokenizasyon + stopword filtreleme."""
+    """Regex-based tokenization + stopword filtering."""
     tokens = re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜâîûêô0-9]+", text.lower())
     return [t for t in tokens if t not in STOPWORDS and len(t) > 1]
 
 
 # ======================================================================
-# Kaynak Yükleme
+# Resource Loading
 # ======================================================================
 
 def load_resources():
-    """Tüm kaynakları yükler: model, reranker, collection, BM25."""
-    print("[INFO] Kaynaklar yükleniyor...")
+    """Loads all resources: model, reranker, collection, BM25."""
+    print("[INFO] Loading resources...")
 
     t0 = time.perf_counter()
     model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    print(f"  Embedding modeli yüklendi. ({time.perf_counter() - t0:.1f}s)")
+    print(f"  Embedding model loaded. ({time.perf_counter() - t0:.1f}s)")
 
     t0 = time.perf_counter()
     reranker = CrossEncoder(RERANKER_MODEL_NAME)
-    print(f"  Reranker modeli yüklendi. ({time.perf_counter() - t0:.1f}s)")
+    print(f"  Reranker model loaded. ({time.perf_counter() - t0:.1f}s)")
 
     client = chromadb.PersistentClient(path=CHROMA_DIR)
     collection = client.get_collection(name=COLLECTION_NAME)
-    print(f"  ChromaDB collection yüklendi. ({collection.count()} chunk)")
+    print(f"  ChromaDB collection loaded. ({collection.count()} chunks)")
 
     with open(BM25_PATH, "rb") as f:
         bm25_data = pickle.load(f)
@@ -94,13 +94,13 @@ def load_resources():
     bm25_chunks = bm25_data["chunks"]
     bm25_metadatas = bm25_data["metadatas"]
     bm25_ids = bm25_data["ids"]
-    print(f"  BM25 indeksi yüklendi. ({len(bm25_chunks)} chunk)")
+    print(f"  BM25 index loaded. ({len(bm25_chunks)} chunks)")
 
     return model, reranker, collection, bm25_index, bm25_chunks, bm25_metadatas, bm25_ids
 
 
 # ======================================================================
-# Hybrid Search (app.py ile aynı mantık)
+# Hybrid Search (same logic as app.py)
 # ======================================================================
 
 def hybrid_search(query, top_k, model, collection, bm25_index,
@@ -178,17 +178,17 @@ def rerank_results(query, candidates, top_k, reranker):
 
 
 # ======================================================================
-# Metrikler
+# Metrics
 # ======================================================================
 
 def hit_rate_at_k(results: list[dict], expected_sources: list[str], k: int) -> float:
-    """Retrieved sonuçlarda beklenen kaynağın bulunma oranı (0 veya 1)."""
+    """The rate at which the expected source is found in Retrieved results (0 or 1)."""
     retrieved_sources = {r["source"] for r in results[:k]}
     return 1.0 if any(s in retrieved_sources for s in expected_sources) else 0.0
 
 
 def mrr(results: list[dict], expected_sources: list[str]) -> float:
-    """Mean Reciprocal Rank — doğru kaynağın sıralamasının tersi."""
+    """Mean Reciprocal Rank — the inverse of the rank of the correct source."""
     for i, r in enumerate(results, start=1):
         if r["source"] in expected_sources:
             return 1.0 / i
@@ -208,30 +208,30 @@ def ndcg_at_k(results: list[dict], expected_sources: list[str], k: int) -> float
 
 
 # ======================================================================
-# Ana İşlem
+# Main Process
 # ======================================================================
 
 def main():
     parser = argparse.ArgumentParser(description="RAG Retrieval Evaluation")
     parser.add_argument("--top_k", type=int, default=5, help="Top-K for metrics (default: 5)")
-    parser.add_argument("--no-rerank", action="store_true", help="Reranking'i devre dışı bırak")
+    parser.add_argument("--no-rerank", action="store_true", help="Disable Reranking")
     args = parser.parse_args()
 
-    # Ground truth yükle
+    # Load ground truth
     if not os.path.exists(GROUND_TRUTH_PATH):
-        print(f"[HATA] Ground truth dosyası bulunamadı: {GROUND_TRUTH_PATH}")
+        print(f"[ERROR] Ground truth file not found: {GROUND_TRUTH_PATH}")
         return
 
     with open(GROUND_TRUTH_PATH, "r", encoding="utf-8") as f:
         ground_truth = json.load(f)
 
-    print(f"[INFO] {len(ground_truth)} soru yüklendi.")
+    print(f"[INFO] {len(ground_truth)} questions loaded.")
     print(f"[INFO] Top-K: {args.top_k}, Reranking: {'OFF' if args.no_rerank else 'ON'}\n")
 
-    # Kaynakları yükle
+    # Load resources
     model, reranker, collection, bm25_index, bm25_chunks, bm25_metadatas, bm25_ids = load_resources()
 
-    # Her soru için metrik hesapla
+    # Calculate metrics for each question
     all_hr = []
     all_mrr = []
     all_ndcg = []
@@ -254,11 +254,11 @@ def main():
             bm25_index, bm25_chunks, bm25_metadatas, bm25_ids,
         )
 
-        # Rerank (opsiyonel)
+        # Rerank (optional)
         if not args.no_rerank:
             results = rerank_results(question, results, args.top_k, reranker)
 
-        # Metrikler
+        # Metrics
         hr = hit_rate_at_k(results, expected_sources, args.top_k)
         m = mrr(results, expected_sources)
         n = ndcg_at_k(results, expected_sources, args.top_k)
@@ -276,7 +276,7 @@ def main():
         status = "✅" if hr > 0 else "❌"
         print(f"  {qid:<6} {difficulty:<10} {hr:>5.2f}  {m:>5.3f}  {n:>5.3f}  {status} {question[:50]}")
 
-    # Genel sonuçlar
+    # Overall results
     avg_hr = sum(all_hr) / len(all_hr) if all_hr else 0
     avg_mrr = sum(all_mrr) / len(all_mrr) if all_mrr else 0
     avg_ndcg = sum(all_ndcg) / len(all_ndcg) if all_ndcg else 0
@@ -293,7 +293,7 @@ def main():
     print(f"  NDCG @{args.top_k}             : {avg_ndcg:.3f}")
     print(f"{'='*70}")
 
-    # Zorluk derecesine göre ayrıştırma
+    # Breakdown by difficulty
     print(f"\n  Per-Difficulty Breakdown:")
     print(f"  {'Difficulty':<10} {'Count':>6} {'HR@K':>8} {'MRR':>8} {'NDCG':>8}")
     print(f"  {'-'*46}")

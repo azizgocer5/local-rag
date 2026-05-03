@@ -3,29 +3,29 @@ import requests
 import json
 
 
-# PDF'te zorunlu olanlar + 20'ye tamamlamak için eklenenler
+# Mandatory in PDF + added to complete to 20
 PEOPLE = [
     "Albert Einstein", "Marie Curie", "Leonardo da Vinci", "William Shakespeare", 
     "Ada Lovelace", "Nikola Tesla", "Lionel Messi", "Cristiano Ronaldo", 
     "Taylor Swift", "Frida Kahlo", 
-    # Eklenenler
+    # Added
     "Mustafa Kemal Atatürk", "İsmet İnönü", "Fevzi Çakmak", "Kazım Karabekir",
     "Sabiha Gökçen", "Ali Fuat Cebesoy", "Halide Edip Adıvar",
-    "Enver Paşa", "Cemal Paşa", "Mithat Paşa", "Kanye West"
+    "Enver Paşa", "Cemal Paşa", "Mithat Paşa", "Talat Paşa", "Kanye West"
 ]
 
 PLACES = [
     "Eiffel Tower", "Great Wall of China", "Taj Mahal", "Grand Canyon", 
     "Machu Picchu", "Colosseum", "Hagia Sophia", "Statue of Liberty", 
     "Giza Necropolis", "Mount Everest", # Pyramids of Giza -> Giza Necropolis (Wiki title)
-    # Eklenenler
+    # Added
     "Dumlupınar", "Anıtkabir", "Topkapı Sarayı", "Galata Kulesi",
     "Çanakkale", "Kocatepe", "Eskişehir",
     "Tuna Nehri", "Ümraniye", "Hatay", "Şişli", "Selanik", "Vienna", "Ankara", "İstanbul"
 ]
 
 def fetch_wikipedia_text(title):
-    """Wikipedia API'sine istek atıp sayfanın düz metnini döndürür. Önce İngilizce, bulamazsa Türkçe Vikipedi'ye bakar."""
+    """Sends a request to the Wikipedia API and returns the plain text of the page. It checks English Wikipedia first, then Turkish if not found."""
     headers = {
         "User-Agent": "LocalRAG/1.0 (local-rag-project; user@example.com)"
     }
@@ -52,33 +52,33 @@ def fetch_wikipedia_text(title):
                     return page_info.get("extract", "")
                     
         except Exception as e:
-            print(f"Hata! '{title}' ({lang} wiki) çekilirken sorun oluştu: {e}")
+            print(f"Error! An issue occurred while fetching '{title}' ({lang} wiki): {e}")
 
-    print(f"Uyarı: '{title}' adında bir sayfa TR veya EN Wikipedia'da bulunamadı veya boş.")
+    print(f"Warning: No page named '{title}' could be found on TR or EN Wikipedia, or it is empty.")
     return None
 
 def main():
-    # Verileri kaydedeceğimiz klasörü oluştur
+    # Create the directory where we will save the data
     os.makedirs("data", exist_ok=True)
     
     entities = {"person": PEOPLE, "place": PLACES}
     
     for entity_type, names in entities.items():
-        print(f"--- {entity_type.upper()} verileri çekiliyor ---")
+        print(f"--- Fetching {entity_type.upper()} data ---")
         for name in names:
-            print(f"Çekiliyor: {name}...")
+            print(f"Fetching: {name}...")
             text = fetch_wikipedia_text(name)
             
             if text:
-                # Dosya adını temizle (Örn: "Albert Einstein" -> "albert_einstein")
+                # Clean the filename (e.g., "Albert Einstein" -> "albert_einstein")
                 safe_name = name.lower().replace(" ", "_")
                 filename = f"data/{entity_type}_{safe_name}.txt"
                 
-                # Metni utf-8 formatında txt olarak kaydet
+                # Save the text as a txt file in utf-8 format
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write(text)
                 
-    print("\n[OK] Tüm veriler başarıyla çekildi ve 'data' klasörüne kaydedildi!")
+    print("\n[OK] All data successfully fetched and saved to the 'data' directory!")
 
 if __name__ == "__main__":
     main()
