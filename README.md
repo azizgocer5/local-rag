@@ -1,3 +1,4 @@
+https://github.com/azizgocer5/local-rag
 # Local RAG – Hybrid Search Q&A System (V2)
 
 A fully local Retrieval-Augmented Generation system that combines **semantic search**
